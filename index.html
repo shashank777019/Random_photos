@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Image Feed</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Random Image Feed</h1>
+    <div id="image-container">
+    </div>
+    <button id="load-more">Load More Images</button>
+    <script>
+        const imageContainer = document.getElementById('image-container');
+        const loadMoreButton = document.getElementById('load-more');
+
+        function getRandomImageUrl() {
+            return `https://picsum.photos/300/200?random=${Math.floor(Math.random() * 1000000)}`;
+        }
+
+        function preloadImage(url) {
+            return new Promise((resolve) => {
+                const img = new window.Image();
+                img.onload = () => resolve(img);
+                img.src = url;
+            });
+        }
+
+        async function createTile() {
+            const frontUrl = getRandomImageUrl();
+            const backUrl = getRandomImageUrl();
+            const [frontImg, backImg] = await Promise.all([
+                preloadImage(frontUrl),
+                preloadImage(backUrl)
+            ]);
+
+            const tile = document.createElement('div');
+            tile.className = 'tile image-box';
+
+            const tileInner = document.createElement('div');
+            tileInner.className = 'tile-inner';
+
+            const tileFront = document.createElement('div');
+            tileFront.className = 'tile-front';
+            tileFront.appendChild(frontImg);
+
+            const tileBack = document.createElement('div');
+            tileBack.className = 'tile-back';
+            tileBack.appendChild(backImg);
+
+            tileInner.appendChild(tileFront);
+            tileInner.appendChild(tileBack);
+            tile.appendChild(tileInner);
+
+            tile._frontUrl = frontUrl;
+            tile._backUrl = backUrl;
+            tile._frontImg = frontImg;
+            tile._backImg = backImg;
+            tile._flipped = false;
+
+            let flipInterval = null;
+            let paused = false;
+
+            async function flipTile() {
+                if (paused) return;
+                tile.classList.toggle('flipped');
+                tile._flipped = !tile._flipped;
+
+                const nextUrl = getRandomImageUrl();
+                const nextImg = await preloadImage(nextUrl);
+
+                if (tile._flipped) {
+                    tileFront.replaceChild(nextImg, tile._frontImg);
+                    tile._frontImg = nextImg;
+                    tile._frontUrl = nextUrl;
+                } else {
+                    tileBack.replaceChild(nextImg, tile._backImg);
+                    tile._backImg = nextImg;
+                    tile._backUrl = nextUrl;
+                }
+            }
+
+            function startFlipInterval() {
+                if (flipInterval) clearInterval(flipInterval);
+                flipInterval = setInterval(flipTile, 3000 + Math.random() * 1000);
+            }
+
+            let lockedImg = null;
+            let lockActive = false;
+            let lockTimeout = null;
+            tile.addEventListener('mouseenter', () => {
+                paused = true;
+                lockTimeout = setTimeout(() => {
+                    lockActive = true;
+                    lockedImg = tile._flipped ? tile._backImg : tile._frontImg;
+                }, 50);
+            });
+            tile.addEventListener('mouseleave', () => {
+                paused = false;
+                lockActive = false;
+                lockedImg = null;
+                if (lockTimeout) clearTimeout(lockTimeout);
+            });
+
+            startFlipInterval();
+
+            return tile;
+        }
+
+        async function addTiles(count = 6) {
+            for (let i = 0; i < count; i++) {
+                const tile = await createTile();
+                imageContainer.appendChild(tile);
+            }
+        }
+
+        loadMoreButton.addEventListener('click', () => addTiles(6));
+
+        addTiles();
+    </script>
+</body>
+</html>
